@@ -157,7 +157,7 @@ A sample CSV file is included in the repository at `sample-loans.csv` for testin
 
 ### Import loans
 
-![import loans](assets/Import loans.gif)
+![import loans](assets/Import_loans.gif)
 
 ### Tokenize loans
 
@@ -169,4 +169,4 @@ A sample CSV file is included in the repository at `sample-loans.csv` for testin
 
 ### Create profile
 
-![create profile](assets/Create profile.gif)
+![create profile](assets/Create_profile.gif)
