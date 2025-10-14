@@ -2,6 +2,24 @@
 
 A full-stack web application for credit institutions to manage and tokenize loans. Built with NestJS (backend) and React + TypeScript (frontend).
 
+## DEMO
+
+### Import loans
+
+![import loans](assets/Import_loans.gif)
+
+### Tokenize loans
+
+![tokenize loans](assets/Tokenize.gif)
+
+### Dashboard
+
+![dashboard](assets/Dashboard.gif)
+
+### Create profile
+
+![create profile](assets/Create_profile.gif)
+
 ## Features
 
 - **Profile Management**: Create and manage credit institution profiles
@@ -15,6 +33,8 @@ A full-stack web application for credit institutions to manage and tokenize loan
 
 - NestJS (Node.js framework)
 - TypeScript
+- PostgreSQL (Database)
+- TypeORM (ORM)
 - PapaParse (CSV parsing)
 - Swagger (API documentation)
 
@@ -30,9 +50,13 @@ A full-stack web application for credit institutions to manage and tokenize loan
 ```
 ├── backend/
 │   ├── src/
+│   │   ├── config/        # Database configuration
 │   │   ├── profile/       # Profile management module
+│   │   │   └── entities/  # Profile entity
 │   │   ├── loan/          # Loan management module
+│   │   │   └── entities/  # Loan entity
 │   │   ├── dashboard/     # Dashboard module
+│   │   ├── database/      # Seed scripts
 │   │   └── types/         # TypeScript interfaces
 │   └── package.json
 │
@@ -52,13 +76,14 @@ A full-stack web application for credit institutions to manage and tokenize loan
 
 - Node.js (v18 or higher)
 - npm or yarn
+- PostgreSQL (v14 or higher)
 
 ### Installation
 
 **Clone the repository**
 
 ```bash
-git clone <repository-url>
+git clone <https://github.com/cyywww/credit-platform>
 cd credit-platform
 ```
 
@@ -149,24 +174,3 @@ LOAN002,ACTIVE,75000,quarterly,4.2,75,B,https://example.com/agreement2
 
 A sample CSV file is included in the repository at `sample-loans.csv` for testing purposes.
 
-## Data Storage
-
-**Note**: This application uses **in-memory storage** for demonstration purposes. All data will be lost when the server restarts. This is intentional for the demo/interview task scope.
-
-## DEMO
-
-### Import loans
-
-![import loans](assets/Import_loans.gif)
-
-### Tokenize loans
-
-![tokenize loans](assets/Tokenize.gif)
-
-### Dashboard
-
-![dashboard](assets/Dashboard.gif)
-
-### Create profile
-
-![create profile](assets/Create_profile.gif)
