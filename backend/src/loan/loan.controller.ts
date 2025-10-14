@@ -36,7 +36,7 @@ export class LoanController {
 
   @Post('tokenize-loans')
   @ApiOperation({ summary: 'Tokenize loans' })
-  tokenize(@Body() tokenizeLoanDto: TokenizeLoanDto) {
+  async tokenize(@Body() tokenizeLoanDto: TokenizeLoanDto) {
     // Support both single and multiple loan IDs
     const loanIds =
       tokenizeLoanDto.loanIds ||
@@ -46,13 +46,18 @@ export class LoanController {
       throw new BadRequestException('No loan IDs provided');
     }
 
-    const results = loanIds.map((id) => {
-      const loan = this.loanService.tokenize(id);
-      if (!loan) {
-        throw new BadRequestException(`Loan ${id} not found`);
-      }
-      return loan;
-    });
+    const results = await Promise.all(
+      loanIds.map(async (id) => {
+        try {
+          const loan = await this.loanService.tokenize(id);
+          return loan;
+        } catch (error) {
+          throw new BadRequestException(
+            `Failed to tokenize loan ${id}: ${(error as Error).message}`,
+          );
+        }
+      }),
+    );
 
     return results.length === 1 ? results[0] : results;
   }

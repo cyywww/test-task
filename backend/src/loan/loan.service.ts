@@ -1,72 +1,149 @@
-import { Injectable } from '@nestjs/common';
-import { Loan, CsvRow, UploadFile } from '../types';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Loan } from './entities/loan.entity';
+import { CsvRow, UploadFile } from '../types';
 import * as Papa from 'papaparse';
+interface SumResult {
+  sum: string | null;
+}
 
 @Injectable()
 export class LoanService {
-  private loans: Loan[] = [];
+  constructor(
+    @InjectRepository(Loan)
+    private readonly loanRepository: Repository<Loan>,
+  ) {}
 
   async uploadCsv(file: UploadFile): Promise<{ count: number }> {
     const csvData = file.buffer.toString('utf-8');
 
     return new Promise((resolve, reject) => {
-      // Papa.parse is the function of the PapaParse library.
-      // It can parse a CSV string into an array of JavaScript objects.
       Papa.parse<CsvRow>(csvData, {
         header: true,
         skipEmptyLines: true,
-        // when parsing is successful
         complete: (results) => {
-          const newLoans: Loan[] = results.data.map((row) => ({
-            id: row.loan_id || row.id || '',
-            status:
-              row.status?.toUpperCase() === 'EXPIRED' ? 'EXPIRED' : 'ACTIVE',
-            // Use the value of row.amount if it exists; otherwise, use 0.
-            // Convert the result to a string, and then convert that string into an actual floating-point number.
-            amount: parseFloat(String(row.amount || 0)),
-            // Snake_case/camelCase compatibility
-            paymentSchedule: row.payment_schedule || row.paymentSchedule || '',
-            interestRate: parseFloat(
-              String(row.interest_rate || row.interestRate || 0),
-            ),
-            ltv: row.ltv ? parseFloat(String(row.ltv)) : undefined,
-            riskGroup: row.risk_group || row.riskGroup || '',
-            agreementUrl: row.agreement_url || row.agreementUrl || '',
-            tokenized: false,
-          }));
-
-          this.loans.push(...newLoans);
-          resolve({ count: newLoans.length });
+          this.processCsvResults(results.data)
+            .then((count) => {
+              resolve({ count });
+            })
+            .catch((error) => {
+              reject(error instanceof Error ? error : new Error(String(error)));
+            });
         },
-        error: (error) => {
-          reject(error);
+        error: (error: Error) => {
+          reject(new Error(`CSV parsing failed: ${error.message}`));
         },
       });
     });
   }
 
-  findAll(): Loan[] {
-    return this.loans;
-  }
+  private async processCsvResults(data: CsvRow[]): Promise<number> {
+    const loansToImport: Loan[] = data.map((row) => {
+      const loan = new Loan();
+      loan.id = row.loan_id || row.id || '';
+      loan.status =
+        row.status?.toUpperCase() === 'EXPIRED' ? 'EXPIRED' : 'ACTIVE';
+      loan.amount = parseFloat(String(row.amount || 0));
+      loan.paymentSchedule = row.payment_schedule || row.paymentSchedule || '';
+      loan.interestRate = parseFloat(
+        String(row.interest_rate || row.interestRate || 0),
+      );
 
-  findOne(id: string): Loan | undefined {
-    return this.loans.find((loan) => loan.id === id);
-  }
+      loan.ltv = row.ltv ? parseFloat(String(row.ltv)) : null;
 
-  tokenize(loanId: string): Loan | null {
-    const loan = this.loans.find((l) => l.id === loanId);
-    if (loan) {
-      loan.tokenized = true;
+      loan.riskGroup = row.risk_group || row.riskGroup || '';
+      loan.agreementUrl = row.agreement_url || row.agreementUrl || '';
+      loan.tokenized = false;
       return loan;
-    }
-    return null;
+    });
+
+    const savedLoans = await this.loanRepository.save(loansToImport, {
+      chunk: 100,
+    });
+
+    return savedLoans.length;
   }
 
-  updateLoanStatuses(): void {
-    this.loans.forEach((loan) => {
-      if (Math.random() > 0.9 && loan.status === 'ACTIVE') {
-        loan.status = 'EXPIRED';
-      }
+  async findAll(): Promise<Loan[]> {
+    return await this.loanRepository.find({
+      order: { createdAt: 'DESC' },
     });
+  }
+
+  async findOne(id: string): Promise<Loan> {
+    const loan = await this.loanRepository.findOne({
+      where: { id },
+    });
+
+    if (!loan) {
+      throw new NotFoundException(`Loan with ID ${id} not found`);
+    }
+
+    return loan;
+  }
+
+  async tokenize(loanId: string): Promise<Loan> {
+    const loan = await this.findOne(loanId);
+
+    if (loan.tokenized) {
+      throw new ConflictException(`Loan ${loanId} is already tokenized`);
+    }
+
+    if (loan.status !== 'ACTIVE') {
+      throw new ConflictException(`Only ACTIVE loans can be tokenized`);
+    }
+
+    loan.tokenized = true;
+    return await this.loanRepository.save(loan);
+  }
+
+  async updateLoanStatuses(): Promise<void> {
+    // Randomly mark some ACTIVE loans as EXPIRED (for demonstration purposes).
+    const activeLoans = await this.loanRepository.find({
+      where: { status: 'ACTIVE' },
+      take: 10,
+    });
+
+    for (const loan of activeLoans) {
+      if (Math.random() > 0.9) {
+        loan.status = 'EXPIRED';
+        await this.loanRepository.save(loan);
+      }
+    }
+  }
+
+  // Batch query (for Dashboard)
+  async getStatistics() {
+    const [total, tokenized, active, expired] = await Promise.all([
+      this.loanRepository.count(),
+      this.loanRepository.count({ where: { tokenized: true } }),
+      this.loanRepository.count({ where: { status: 'ACTIVE' } }),
+      this.loanRepository.count({ where: { status: 'EXPIRED' } }),
+    ]);
+
+    const totalAmount = await this.loanRepository
+      .createQueryBuilder('loan')
+      .select('SUM(loan.amount)', 'sum')
+      .getRawOne<SumResult>();
+
+    const tokenizedAmount = await this.loanRepository
+      .createQueryBuilder('loan')
+      .select('SUM(loan.amount)', 'sum')
+      .where('loan.tokenized = :tokenized', { tokenized: true })
+      .getRawOne<SumResult>();
+
+    return {
+      totalLoans: total,
+      totalTokenized: tokenized,
+      activeLoans: active,
+      expiredLoans: expired,
+      totalLoanAmount: parseFloat(totalAmount?.sum || '0'),
+      totalTokenizedAmount: parseFloat(tokenizedAmount?.sum || '0'),
+    };
   }
 }

@@ -1,26 +1,52 @@
-import { Injectable } from '@nestjs/common';
-import { Profile } from '../types';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Profile } from './entities/profile.entity';
 import { CreateProfileDto } from './dto/create-profile.dto';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ProfileService {
-  private profiles: Profile[] = [];
+  constructor(
+    @InjectRepository(Profile)
+    private readonly profileRepository: Repository<Profile>,
+  ) {}
 
-  create(createProfileDto: CreateProfileDto): Profile {
-    const profile: Profile = {
-      id: uuidv4(),
-      ...createProfileDto,
-    };
-    this.profiles.push(profile);
+  async create(createProfileDto: CreateProfileDto): Promise<Profile> {
+    const profile = this.profileRepository.create(createProfileDto);
+    return await this.profileRepository.save(profile);
+  }
+
+  async findAll(): Promise<Profile[]> {
+    return await this.profileRepository.find({
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findOne(id: string): Promise<Profile> {
+    const profile = await this.profileRepository.findOne({
+      where: { id },
+    });
+
+    if (!profile) {
+      throw new NotFoundException(`Profile with ID ${id} not found`);
+    }
+
     return profile;
   }
 
-  findAll(): Profile[] {
-    return this.profiles;
+  async update(
+    id: string,
+    updateData: Partial<CreateProfileDto>,
+  ): Promise<Profile> {
+    const profile = await this.findOne(id);
+    Object.assign(profile, updateData);
+    return await this.profileRepository.save(profile);
   }
 
-  findOne(id: string): Profile | undefined {
-    return this.profiles.find((profile) => profile.id === id);
+  async remove(id: string): Promise<void> {
+    const result = await this.profileRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Profile with ID ${id} not found`);
+    }
   }
 }

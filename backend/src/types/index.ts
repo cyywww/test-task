@@ -16,7 +16,7 @@ export interface Loan {
   amount: number;
   paymentSchedule: string;
   interestRate: number;
-  ltv?: number;
+  ltv: number | null;
   riskGroup: string;
   agreementUrl: string;
   tokenized: boolean;

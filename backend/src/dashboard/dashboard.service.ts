@@ -6,30 +6,16 @@ import { DashboardData } from '../types';
 export class DashboardService {
   constructor(private loanService: LoanService) {}
 
-  getDashboardData(): DashboardData {
-    const loans = this.loanService.findAll();
-
-    // Calculate the total loan amount
-    const totalLoanAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
-    // Filter tokenized loans
-    const tokenizedLoans = loans.filter((loan) => loan.tokenized);
-    // Calculate the total amount of tokenized loans
-    const totalTokenizedAmount = tokenizedLoans.reduce(
-      (sum, loan) => sum + loan.amount,
-      0,
-    );
-    const activeLoans = loans.filter((loan) => loan.status === 'ACTIVE').length;
-    const expiredLoans = loans.filter(
-      (loan) => loan.status === 'EXPIRED',
-    ).length;
+  async getDashboardData(): Promise<DashboardData> {
+    const stats = await this.loanService.getStatistics();
 
     return {
-      totalLoans: loans.length,
-      totalLoanAmount,
-      totalTokenized: tokenizedLoans.length,
-      totalTokenizedAmount,
-      activeLoans,
-      expiredLoans,
+      totalLoans: stats.totalLoans,
+      totalLoanAmount: stats.totalLoanAmount,
+      totalTokenized: stats.totalTokenized,
+      totalTokenizedAmount: stats.totalTokenizedAmount,
+      activeLoans: stats.activeLoans,
+      expiredLoans: stats.expiredLoans,
     };
   }
 }
